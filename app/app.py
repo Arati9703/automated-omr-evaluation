@@ -4,7 +4,7 @@ import numpy as np
 import cv2, os, re, tempfile, sys
 
 # --- Fix import path (so we can access src/ from app/)
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.append(os.path.join(os.path.dirname(_file_), ".."))
 from src.omr_utils import detect_bubbles
 
 # --- Streamlit page setup
@@ -23,7 +23,7 @@ if key_file:
     for subject in raw_key.columns:
         for cell in raw_key[subject].dropna():
             cell = str(cell).strip().lower()
-            match = re.match(r"(\d+)\s*[-.\s]*\s*([a-d])", cell)
+            match = re.match(r"(\d+)\s*[-.\s]\s([a-d])", cell)
             if match:
                 q_num = int(match.group(1))
                 ans = match.group(2)
@@ -35,16 +35,23 @@ if key_file:
 # Step 2: Upload OMR Sheet Images
 # =====================
 uploaded_files = st.file_uploader("📷 Upload OMR Sheets", type=["jpg","jpeg","png"], accept_multiple_files=True)
+debug_mode = st.checkbox("🔎 Enable Debug Mode (show detected bubbles)")
 
 results = []
 if uploaded_files and answer_key is not None:
-    for file in uploaded_files:
+    for idx, file in enumerate(uploaded_files):
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp.write(file.read())
             tmp_path = tmp.name
         
         # Run bubble detection
-        marked = detect_bubbles(tmp_path, answer_key)
+        if debug_mode and idx == 0:  # only debug first sheet
+            marked, dbg_img = detect_bubbles(tmp_path, answer_key, debug=True)
+            st.image(cv2.cvtColor(dbg_img, cv2.COLOR_BGR2RGB),
+                     caption=f"Debug View: {file.name}")
+        else:
+            marked = detect_bubbles(tmp_path, answer_key)
+
         student_id = os.path.splitext(file.name)[0]
 
         for _, row in answer_key.iterrows():
@@ -70,9 +77,8 @@ if uploaded_files and answer_key is not None:
     # Step 4: Download Button
     # =====================
     st.download_button(
-        "⬇️ Download CSV",
+        "⬇ Download CSV",
         report.to_csv(index=False).encode("utf-8"),
         "omr_results.csv",
         "text/csv"
     )
-
